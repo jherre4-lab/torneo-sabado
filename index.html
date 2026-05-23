@@ -72,7 +72,7 @@ button{cursor:pointer;font-family:var(--mono);border:none;border-radius:7px;tran
 // ═══════════════════════════════════════════════════════
 // CONFIG — reemplaza con tu URL de Apps Script
 // ═══════════════════════════════════════════════════════
-let SCRIPT_URL = localStorage.getItem("torneo_script_url") || "";
+let SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwT_yFYWn5EraJhWBsT6x3jpRUaERrcw5o0mbN-hzJmdV9SuTiIyZX1lQhhaYeHqjlR/exec";
 
 // ═══════════════════════════════════════════════════════
 // COURSE DATA
@@ -645,17 +645,12 @@ function confirmReset() {
 // ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
-if(SCRIPT_URL) {
-  // Try to restore state from sheet
-  pullState().then(()=>{
-    if(!state.players?.length) state.screen="setup";
-    if(state.screen==="config") state.screen="setup";
-    renderCurrentScreen();
-    if(state.players?.length) { topbar().style.display="flex"; startAutoPull(); }
-  }).catch(()=>{ renderConfig(); });
-} else {
-  renderConfig();
-}
+pullState().then(()=>{
+  if(!state.players?.length) state.screen="setup";
+  if(state.screen==="config") state.screen="setup";
+  renderCurrentScreen();
+  if(state.players?.length) { topbar().style.display="flex"; startAutoPull(); }
+}).catch(()=>{ state.screen="setup"; renderCurrentScreen(); });
 </script>
 </body>
 </html>
