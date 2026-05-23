@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Torneo Sábado ⛳</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050e07;--card:#0f1c11;--border:#1b3520;--green:#1a5c2a;
+  --lime:#6fcf7a;--gold:#e2b44b;--red:#e05252;--text:#dff0e0;--muted:#6b8f70;
+  --display:'Bebas Neue',sans-serif;--mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;-webkit-tap-highlight-color:transparent}
+input,select{background:#07100a;border:1px solid var(--border);color:var(--text);
+  padding:9px 11px;border-radius:7px;font-family:var(--mono);font-size:14px;
+  width:100%;-webkit-appearance:none;transition:border-color .15s}
+input:focus,select:focus{outline:none;border-color:var(--lime)}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+button{cursor:pointer;font-family:var(--mono);border:none;border-radius:7px;transition:all .15s}
+.btn-p{background:var(--lime);color:#050e07;font-weight:700;padding:12px 24px;font-size:13px;letter-spacing:.5px;width:100%}
+.btn-p:hover{background:#88e094}
+.btn-p:disabled{background:#1a3a1e;color:#3a6040;cursor:not-allowed}
+.btn-g{background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px 14px;font-size:12px}
+.btn-g:hover{border-color:var(--lime);color:var(--lime)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.label{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+.tab{padding:7px 13px;border-radius:6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;
+  background:transparent;border:1px solid transparent;color:var(--muted)}
+.tab.on{background:var(--green);border-color:var(--lime);color:var(--lime)}
+.score-in{width:44px;text-align:center;padding:6px 2px;font-size:16px;font-weight:500;border-radius:5px}
+.u{background:#0a2e12!important;color:var(--lime)!important;border-color:#1a5020!important}
+.o{background:#2e0a0a!important;color:var(--red)!important;border-color:#501a1a!important}
+.e{background:#071208!important}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fadeUp .25s ease forwards}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--lime);
+  border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+#topbar{position:sticky;top:0;z-index:10;background:rgba(5,14,7,0.94);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--border);
+  padding:10px 14px;display:none;align-items:center;gap:8px}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--lime);display:inline-block;margin-right:4px}
+.sync-dot.err{background:var(--red)}
+.sync-dot.load{background:var(--gold)}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span style="font-family:var(--display);font-size:20px;color:var(--lime);letter-spacing:2px">⛳ TORNEO</span>
+  <div style="flex:1"></div>
+  <span id="sync-indicator" style="font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px">
+    <span class="sync-dot" id="sync-dot"></span><span id="sync-text">Sincronizado</span>
+  </span>
+  <div style="display:flex;gap:5px;margin-left:10px">
+    <button class="tab" id="tab-groups" onclick="showScreen('groups')">Partidas</button>
+    <button class="tab" id="tab-scoring" onclick="showScreen('scoring')">Scores</button>
+    <button class="tab" id="tab-summary" onclick="showScreen('summary')">Resumen</button>
+  </div>
+</div>
+
+<div id="app" style="max-width:600px;margin:0 auto;padding:0 12px 40px"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONFIG — reemplaza con tu URL de Apps Script
+// ═══════════════════════════════════════════════════════
+let SCRIPT_URL = localStorage.getItem("torneo_script_url") || "";
+
+// ═══════════════════════════════════════════════════════
+// COURSE DATA
+// ═══════════════════════════════════════════════════════
+const COURSE = {
+  par:   [5,4,4,4,3,4,5,3,4, 4,5,3,4,3,4,5,4,4],
+  si:    [2,16,14,6,10,12,8,18,4, 13,5,9,1,11,15,7,3,17],
+  yards: [575,313,362,470,220,393,546,183,458, 401,594,212,445,177,365,538,468,253],
+};
+
+const PRIZES = {
+  8:{f:40,s:20,t:20},9:{f:45,s:25,t:20},10:{f:55,s:25,t:20},
+  11:{f:60,s:30,t:20},12:{f:65,s:35,t:20},13:{f:75,s:35,t:20},
+  14:{f:80,s:40,t:20},15:{f:85,s:45,t:20},16:{f:95,s:45,t:20},
+};
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let state = {
+  screen: "config", // config | setup | groups | scoring | summary
+  players: [],
+  groups: [],
+  scores: [],
+};
+let syncTimer = null;
+let activeGroup = 0;
+let summaryTab = "sf";
+
+// ═══════════════════════════════════════════════════════
+// SYNC
+// ═══════════════════════════════════════════════════════
+function setSyncStatus(status) {
+  const dot = document.getElementById("sync-dot");
+  const txt = document.getElementById("sync-text");
+  if (!dot) return;
+  dot.className = "sync-dot" + (status==="err"?" err":status==="load"?" load":"");
+  txt.textContent = status==="ok"?"Sincronizado":status==="load"?"Guardando...":"Error sync";
+}
+
+async function pushState() {
+  if (!SCRIPT_URL) return;
+  setSyncStatus("load");
+  try {
+    const url = `${SCRIPT_URL}?action=setState&data=${encodeURIComponent(JSON.stringify(state))}`;
+    await fetch(url, {method:"GET", mode:"no-cors"});
+    setSyncStatus("ok");
+  } catch {
+    setSyncStatus("err");
+  }
+}
+
+async function pullState() {
+  if (!SCRIPT_URL) return;
+  try {
+    const url = `${SCRIPT_URL}?action=getState`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.ok && json.state && json.state.players) {
+      state = json.state;
+      renderCurrentScreen();
+    }
+  } catch {}
+}
+
+function schedulePush() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(pushState, 1200);
+}
+
+// Auto-pull every 8 seconds when scoring
+function startAutoPull() {
+  stopAutoPull();
+  window._pullInterval = setInterval(()=>{
+    if (state.screen==="scoring"||state.screen==="summary") pullState();
+  }, 8000);
+}
+function stopAutoPull() {
+  clearInterval(window._pullInterval);
+}
+
+// ═══════════════════════════════════════════════════════
+// CALCULATIONS
+// ═══════════════════════════════════════════════════════
+function strokesOnHole(hcp, si) {
+  return Math.floor(hcp/18) + (si <= hcp%18 ? 1 : 0);
+}
+
+function sfPoints(gross, par, strokes) {
+  if (gross===null||gross===undefined) return null;
+  return Math.max(0, par - (gross-strokes) + 2);
+}
+
+function calcResults() {
+  const {players, scores} = state;
+  const n = players.length;
+  const pr = PRIZES[n] || PRIZES[16];
+  const potPerHole = (n*10)/18;
+
+  const pData = players.map((p,pi)=>{
+    const holes = COURSE.par.map((par,hi)=>{
+      const strokes = strokesOnHole(p.hcp, COURSE.si[hi]);
+      const gross = scores[pi]?.[hi] ?? null;
+      const net = gross!==null ? gross-strokes : null;
+      const pts = sfPoints(gross, par, strokes);
+      return {gross,net,strokes,pts,par};
+    });
+    return {...p, holes, totalPts: holes.reduce((s,h)=>s+(h.pts??0),0)};
+  });
+
+  let carryover=0;
+  const matchWin = Array(n).fill(0);
+  const matchLog = [];
+
+  for(let hi=0;hi<18;hi++){
+    const nets = pData.map(p=>p.holes[hi].net);
+    if(nets.some(v=>v===null)){
+      matchLog.push({hole:hi+1,result:"pending",accumulated:potPerHole+carryover});
+      carryover+=potPerHole; continue;
+    }
+    const minNet=Math.min(...nets);
+    const winners=nets.reduce((a,v,i)=>v===minNet?[...a,i]:a,[]);
+    const pot=potPerHole+carryover;
+    if(winners.length===1){matchWin[winners[0]]+=pot;carryover=0;matchLog.push({hole:hi+1,result:"winner",winner:winners[0],pot});}
+    else if(winners.length===2){winners.forEach(i=>{matchWin[i]+=pot/2;});carryover=0;matchLog.push({hole:hi+1,result:"split",winners,pot});}
+    else{carryover+=potPerHole;matchLog.push({hole:hi+1,result:"carry",accumulated:carryover});}
+  }
+  if(carryover>0){
+    const tn=pData.map(p=>p.holes.reduce((s,h)=>s+(h.net??0),0));
+    const best=Math.min(...tn);
+    const fw=tn.reduce((a,v,i)=>v===best?[...a,i]:a,[]);
+    fw.forEach(i=>{matchWin[i]+=carryover/fw.length;});
+  }
+
+  const sfWin=Array(n).fill(0);
+  const complete=pData.every(p=>p.holes.every(h=>h.gross!==null));
+  const sfRanked=[...pData].map((p,i)=>({i,pts:p.totalPts})).sort((a,b)=>b.pts-a.pts);
+  if(complete){
+    if(n>=1)sfWin[sfRanked[0].i]+=pr.f;
+    if(n>=2)sfWin[sfRanked[1].i]+=pr.s;
+    if(n>=3)sfWin[sfRanked[2].i]+=pr.t;
+  }
+
+  return {
+    pData, matchLog, sfRanked, prizes:pr, complete,
+    netResult: pData.map((p,i)=>({...p,
+      matchWin:matchWin[i],sfWin:sfWin[i],
+      totalWin:matchWin[i]+sfWin[i],
+      netPayout:matchWin[i]+sfWin[i]-20,
+      sfRank:sfRanked.findIndex(r=>r.i===i)+1
+    }))
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════
+const app = ()=>document.getElementById("app");
+const topbar = ()=>document.getElementById("topbar");
+
+function showScreen(s) {
+  state.screen = s;
+  renderCurrentScreen();
+  schedulePush();
+}
+
+function renderCurrentScreen() {
+  const s = state.screen;
+  topbar().style.display = s==="config"||s==="setup" ? "none" : "flex";
+  ["groups","scoring","summary"].forEach(t=>{
+    const el = document.getElementById("tab-"+t);
+    if(el) el.className="tab"+(s===t?" on":"");
+  });
+  if(s==="config")   renderConfig();
+  else if(s==="setup")    renderSetup();
+  else if(s==="groups")   renderGroups();
+  else if(s==="scoring")  renderScoring();
+  else if(s==="summary")  renderSummary();
+}
+
+// ── CONFIG ────────────────────────────────────────────
+function renderConfig() {
+  app().innerHTML = `
+  <div class="fu" style="max-width:420px;margin:0 auto;padding:32px 4px">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-family:var(--display);font-size:52px;color:var(--lime);letter-spacing:3px;line-height:1">TORNEO</div>
+      <div style="font-family:var(--display);font-size:22px;color:var(--muted);letter-spacing:6px">SÁBADO</div>
+      <div style="width:36px;height:2px;background:var(--lime);margin:12px auto"></div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:1.5px">⛳ 18 HOYOS · MATCH PLAY + STABLEFORD</div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="label" style="margin-bottom:10px">URL del Apps Script</div>
+      <input id="url-input" placeholder="https://script.google.com/macros/s/..." 
+        value="${SCRIPT_URL}" style="font-size:11px"/>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">
+        Pega aquí el URL que obtienes al publicar el Apps Script como Web App.
+      </div>
+    </div>
+
+    <button class="btn-p" onclick="saveConfig()">GUARDAR Y CONTINUAR →</button>
+    <div style="text-align:center;margin-top:12px">
+      <button class="btn-g" style="font-size:11px" onclick="skipConfig()">
+        Usar sin sincronización (solo local)
+      </button>
+    </div>
+  </div>`;
+}
+
+function saveConfig() {
+  const url = document.getElementById("url-input").value.trim();
+  SCRIPT_URL = url;
+  localStorage.setItem("torneo_script_url", url);
+  // Try to pull existing state
+  if(url) {
+    pullState().then(()=>{
+      if(!state.players.length) state.screen="setup";
+      renderCurrentScreen();
+      startAutoPull();
+    });
+  } else {
+    state.screen="setup";
+    renderCurrentScreen();
+  }
+}
+
+function skipConfig() {
+  SCRIPT_URL="";
+  state.screen="setup";
+  renderCurrentScreen();
+}
+
+// ── SETUP ─────────────────────────────────────────────
+function renderSetup() {
+  const n = state._setupN || 8;
+  const ps = state._setupPlayers || Array.from({length:n},()=>({name:"",hcp:""}));
+  state._setupN=n; state._setupPlayers=ps;
+
+  const rows = ps.map((p,i)=>`
+    <div style="display:flex;gap:8px;margin-bottom:9px;align-items:center">
+      <div style="font-family:var(--display);font-size:16px;color:var(--muted);width:20px;text-align:right;flex-shrink:0">${i+1}</div>
+      <input placeholder="Nombre" value="${p.name}" oninput="updSetup(${i},'name',this.value)" style="flex:1"/>
+      <input placeholder="HCP" type="number" min="0" max="54" value="${p.hcp}"
+        oninput="updSetup(${i},'hcp',this.value)" style="width:62px;flex:none"/>
+    </div>`).join("");
+
+  app().innerHTML=`
+  <div class="fu" style="max-width:420px;margin:0 auto;padding:20px 4px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="font-family:var(--display);font-size:30px;color:var(--lime)">JUGADORES</div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="label" style="margin-bottom:10px">Número de jugadores</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn-g" style="width:40px;padding:8px 0;font-size:18px" onclick="resizeSetup(${n}-1)">−</button>
+        <div style="font-family:var(--display);font-size:40px;flex:1;text-align:center;color:var(--lime)">${n}</div>
+        <button class="btn-g" style="width:40px;padding:8px 0;font-size:18px" onclick="resizeSetup(${n}+1)">+</button>
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:6px">
+        Inscripción total: <span style="color:var(--gold)">$${n*20}</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:14px">Registrar jugadores</div>
+      ${rows}
+    </div>
+    <button class="btn-p" style="margin-top:18px" id="start-btn" onclick="startTournament()" disabled>
+      INICIAR TORNEO →
+    </button>
+  </div>`;
+  checkSetupValid();
+}
+
+function resizeSetup(n) {
+  n=Math.max(8,Math.min(16,n));
+  const cur=state._setupPlayers||[];
+  while(cur.length<n) cur.push({name:"",hcp:""});
+  state._setupN=n; state._setupPlayers=cur.slice(0,n);
+  renderSetup();
+}
+
+function updSetup(i,f,v) {
+  state._setupPlayers[i][f]=v;
+  checkSetupValid();
+}
+
+function checkSetupValid() {
+  const ps=state._setupPlayers||[];
+  const ok=ps.every(p=>p.name.trim()&&p.hcp!==""&&!isNaN(+p.hcp)&&+p.hcp>=0);
+  const btn=document.getElementById("start-btn");
+  if(btn) btn.disabled=!ok;
+}
+
+function startTournament() {
+  const ps=state._setupPlayers.map(p=>({name:p.name.trim(),hcp:+p.hcp}));
+  const n=ps.length;
+  state.players=ps;
+  state.groups=Array.from({length:Math.ceil(n/4)},(_,gi)=>
+    Array.from({length:Math.min(4,n-gi*4)},(_,j)=>gi*4+j));
+  state.scores=Array.from({length:n},()=>Array(18).fill(null));
+  delete state._setupN; delete state._setupPlayers;
+  showScreen("groups");
+  startAutoPull();
+}
+
+// ── GROUPS ────────────────────────────────────────────
+function renderGroups() {
+  const {players,groups}=state;
+  const cards=groups.map((grp,gi)=>`
+    <div class="card" style="margin-bottom:12px">
+      <div class="label" style="color:var(--lime);margin-bottom:10px">Partida ${gi+1} · ${grp.length} jugadores</div>
+      ${grp.map((pi,pos)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;
+          background:#080f09;border-radius:6px;margin-bottom:6px;border:1px solid var(--border)">
+          <span style="color:var(--lime);font-size:12px">⛳</span>
+          <span style="flex:1;font-size:13px">${players[pi].name}</span>
+          <span style="font-size:11px;color:var(--muted)">HCP ${players[pi].hcp}</span>
+          <div style="display:flex;gap:4px">
+            ${gi>0?`<button class="btn-g" style="padding:3px 8px" onclick="movePlayer(${gi},${pos},${gi-1})">↑</button>`:""}
+            ${gi<groups.length-1?`<button class="btn-g" style="padding:3px 8px" onclick="movePlayer(${gi},${pos},${gi+1})">↓</button>`:""}
+          </div>
+        </div>`).join("")}
+    </div>`).join("");
+
+  app().innerHTML=`
+  <div class="fu" style="max-width:440px;margin:0 auto;padding:20px 4px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="font-family:var(--display);font-size:30px;color:var(--lime)">PARTIDAS</div>
+      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--muted)">${players.length} jugadores</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:18px">Mueve jugadores entre partidas con las flechas.</div>
+    ${cards}
+    <button class="btn-p" onclick="showScreen('scoring')">COMENZAR A ANOTAR →</button>
+  </div>`;
+}
+
+function movePlayer(fromG,fromIdx,toG) {
+  const g=state.groups.map(gr=>[...gr]);
+  const [pi]=g[fromG].splice(fromIdx,1);
+  g[toG].push(pi);
+  state.groups=g.filter(gr=>gr.length>0);
+  schedulePush();
+  renderGroups();
+}
+
+// ── SCORING ───────────────────────────────────────────
+function renderScoring() {
+  const {players,groups,scores}=state;
+  if(activeGroup>=groups.length) activeGroup=0;
+  const gp=groups[activeGroup].map(pi=>({pi,p:players[pi]}));
+
+  const tabs=groups.map((_,gi)=>
+    `<button class="tab${activeGroup===gi?" on":""}" onclick="setGroup(${gi})">Partida ${gi+1}</button>`
+  ).join("");
+
+  const parSum=(s,e)=>COURSE.par.slice(s,e).reduce((a,v)=>a+v,0);
+
+  const renderHalf=(start,end)=>{
+    const hdrs=COURSE.par.slice(start,end).map((_,i)=>
+      `<th style="padding:5px 3px;text-align:center;color:var(--muted);width:44px;min-width:44px">${start+i+1}</th>`
+    ).join("");
+    const pars=COURSE.par.slice(start,end).map(p=>
+      `<td style="padding:4px 3px;text-align:center;color:var(--muted);font-size:11px">${p}</td>`
+    ).join("");
+    const sis=COURSE.si.slice(start,end).map(si=>
+      `<td style="padding:3px 3px;text-align:center;color:#2a5030;font-size:10px">${si}</td>`
+    ).join("");
+
+    const playerRows=gp.map(({pi,p})=>{
+      const rowG=scores[pi].slice(start,end).reduce((s,v)=>s+(v??0),0);
+      const cells=COURSE.par.slice(start,end).map((par,i)=>{
+        const hi=start+i;
+        const str=strokesOnHole(p.hcp,COURSE.si[hi]);
+        const g=scores[pi][hi];
+        let cls="score-in e";
+        if(g!==null){const net=g-str;cls=net<par?"score-in u":net>par?"score-in o":"score-in e";}
+        return `<td style="padding:4px 2px;text-align:center">
+          <input type="number" min="1" max="15" class="${cls}" value="${g??""}"
+            onchange="updScore(${pi},${hi},this.value)" inputmode="numeric"/>
+        </td>`;
+      }).join("");
+      return `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:6px 8px;white-space:nowrap">
+          <div style="font-size:12px;font-weight:500">${p.name.split(" ")[0]}</div>
+          <div style="font-size:9px;color:var(--muted)">HCP ${p.hcp}</div>
+        </td>
+        ${cells}
+        <td style="padding:6px 8px;text-align:center">
+          <span style="font-family:var(--display);font-size:18px;color:var(--text)">${rowG>0?rowG:"–"}</span>
+        </td>
+      </tr>`;
+    }).join("");
+
+    return `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table style="border-collapse:collapse;font-size:12px;min-width:100%">
+        <thead>
+          <tr style="background:var(--green)">
+            <th style="padding:6px 8px;text-align:left;color:var(--lime);font-weight:500;min-width:80px">JUGADOR</th>
+            ${hdrs}
+            <th style="padding:6px 8px;text-align:center;color:var(--lime);min-width:38px">TOT</th>
+          </tr>
+          <tr style="background:#060d07"><td style="padding:4px 8px;color:var(--muted);font-size:10px">PAR</td>${pars}<td style="padding:4px 8px;text-align:center;color:var(--muted);font-size:11px">${parSum(start,end)}</td></tr>
+          <tr style="background:#040c05"><td style="padding:3px 8px;color:var(--muted);font-size:9px">SI</td>${sis}<td></td></tr>
+        </thead>
+        <tbody>${playerRows}</tbody>
+      </table>
+    </div>`;
+  };
+
+  // Stableford mini
+  const sfRows=gp.map(({pi,p})=>{
+    const pts=COURSE.par.reduce((s,par,hi)=>s+(sfPoints(scores[pi][hi],par,strokesOnHole(p.hcp,COURSE.si[hi]))??0),0);
+    const played=scores[pi].filter(v=>v!==null).length;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:13px">${p.name}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${played}/18 hoyos</div>
+      </div>
+      <div style="font-family:var(--display);font-size:26px;color:var(--lime)">${pts} pts</div>
+    </div>`;
+  }).join("");
+
+  app().innerHTML=`
+  <div class="fu" style="max-width:600px;margin:0 auto;padding:14px 4px">
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      ${tabs}
+      <div style="flex:1"></div>
+      <button class="btn-g" style="font-size:11px;padding:6px 12px" onclick="showScreen('summary')">Resumen →</button>
+    </div>
+    <div class="card" style="margin-bottom:12px;padding:12px 8px">
+      <div class="label" style="color:var(--lime);margin-bottom:10px;padding-left:8px">FRONT 9 · HOYOS 1–9</div>
+      ${renderHalf(0,9)}
+    </div>
+    <div class="card" style="margin-bottom:12px;padding:12px 8px">
+      <div class="label" style="color:var(--lime);margin-bottom:10px;padding-left:8px">BACK 9 · HOYOS 10–18</div>
+      ${renderHalf(9,18)}
+    </div>
+    <div class="card">
+      <div class="label" style="color:var(--lime);margin-bottom:10px">STABLEFORD · PARTIDA ${activeGroup+1}</div>
+      ${sfRows}
+    </div>
+  </div>`;
+}
+
+function setGroup(gi) { activeGroup=gi; renderScoring(); }
+
+function updScore(pi,hi,val) {
+  state.scores[pi][hi] = val===""?null:+val;
+  schedulePush();
+  // Update just the stableford mini without full re-render
+  renderScoring();
+}
+
+// ── SUMMARY ───────────────────────────────────────────
+function renderSummary() {
+  const res=calcResults();
+  const {netResult,matchLog,prizes,complete}=res;
+  const n=state.players.length;
+  const sfSorted=[...netResult].sort((a,b)=>b.totalPts-a.totalPts);
+  const paySorted=[...netResult].sort((a,b)=>b.netPayout-a.netPayout);
+  const ri=["🥇","🥈","🥉"];
+
+  const sfRows=sfSorted.map((p,rank)=>{
+    const prize=rank===0?prizes.f:rank===1?prizes.s:rank===2?prizes.t:0;
+    return `<div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px">
+      <span style="font-size:20px;width:28px">${ri[rank]||rank+1}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${p.name}</div>
+        <div style="font-size:10px;color:var(--muted)">HCP ${p.hcp}</div>
+      </div>
+      <div style="text-align:right;margin-right:${prize>0?8:0}px">
+        <div style="font-family:var(--display);font-size:28px;color:var(--lime)">${p.totalPts}</div>
+        <div style="font-size:9px;color:var(--muted)">pts netos</div>
+      </div>
+      ${prize>0?`<div style="background:#1a2000;border:1px solid var(--gold);color:var(--gold);
+        padding:5px 10px;border-radius:6px;font-family:var(--display);font-size:18px;
+        min-width:52px;text-align:center">$${prize}</div>`:""}
+    </div>`;
+  }).join("");
+
+  const mpHoles=matchLog.map(m=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1a0e;font-size:12px">
+      <span style="color:var(--muted);width:36px;flex-shrink:0;font-size:11px">H${m.hole}</span>
+      ${m.result==="pending"?`<span style="color:#2a4a2a">Pendiente</span>`:
+        m.result==="winner"?`<span style="color:var(--lime)">🏆 ${state.players[m.winner].name.split(" ")[0]}</span>
+          <span style="color:var(--gold);margin-left:auto">$${m.pot.toFixed(2)}</span>`:
+        m.result==="split"?`<span style="color:var(--lime)">⚖️ ${m.winners.map(w=>state.players[w].name.split(" ")[0]).join(" / ")}</span>
+          <span style="color:var(--gold);margin-left:auto">$${(m.pot/2).toFixed(2)} c/u</span>`:
+        `<span style="color:#e07a20">↗ Acumulado → $${m.accumulated.toFixed(2)}</span>`}
+    </div>`).join("");
+
+  const mpWin=[...netResult].sort((a,b)=>b.matchWin-a.matchWin).map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${p.name}</span>
+      <span style="font-family:var(--display);font-size:20px;color:${p.matchWin>0?"var(--lime)":"var(--muted)"}">$${p.matchWin.toFixed(2)}</span>
+    </div>`).join("");
+
+  const payRows=paySorted.map(p=>`
+    <div style="display:flex;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);gap:10px">
+      <div style="flex:1">
+        <div style="font-size:13px">${p.name}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">Match $${p.matchWin.toFixed(2)} + SF $${p.sfWin} − $20</div>
+      </div>
+      <div style="font-family:var(--display);font-size:26px;color:${p.netPayout>0?"var(--lime)":p.netPayout<0?"var(--red)":"var(--muted)"}">
+        ${p.netPayout>0?"+":""}${p.netPayout===0?"$0.00":"$"+Math.abs(p.netPayout).toFixed(2)}
+      </div>
+    </div>`).join("");
+
+  const tabContent = summaryTab==="sf"
+    ? `<div class="card fu"><div class="label" style="color:var(--lime);margin-bottom:12px">Clasificación Stableford</div>${sfRows}</div>`
+    : summaryTab==="mp"
+    ? `<div class="card fu">
+        <div class="label" style="color:var(--lime);margin-bottom:12px">Match Play Hoyo a Hoyo</div>
+        <div style="max-height:280px;overflow-y:auto;margin-bottom:14px">${mpHoles}</div>
+        <div class="label" style="color:var(--lime);margin-bottom:8px">Ganancias por jugador</div>
+        ${mpWin}
+       </div>`
+    : `<div class="card fu">
+        <div class="label" style="color:var(--lime);margin-bottom:12px">Resultado Final · Cobro / Pago</div>
+        ${payRows}
+        ${!complete?`<div style="margin-top:12px;padding:9px 12px;background:#120e00;border:1px solid #3a2800;border-radius:7px;font-size:11px;color:var(--gold)">
+          ⚠️ Los premios Stableford se calculan al completar los 18 hoyos.</div>`:""}
+       </div>`;
+
+  app().innerHTML=`
+  <div class="fu" style="max-width:500px;margin:0 auto;padding:16px 4px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="font-family:var(--display);font-size:28px;color:var(--lime)">RESUMEN</div>
+      ${!complete?`<span style="font-size:9px;background:#1a1200;color:var(--gold);padding:3px 8px;border-radius:4px;border:1px solid #3a2800;letter-spacing:.5px">EN CURSO</span>`:""}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="card" style="text-align:center;padding:12px 8px">
+        <div class="label" style="margin-bottom:6px">Match Play</div>
+        <div style="font-family:var(--display);font-size:28px;color:var(--gold)">$${n*10}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px">$${(n*10/18).toFixed(2)}/hoyo</div>
+      </div>
+      <div class="card" style="text-align:center;padding:12px 8px">
+        <div class="label" style="margin-bottom:6px">Stableford</div>
+        <div style="font-family:var(--display);font-size:28px;color:var(--gold)">$${n*10}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px">🥇$${prizes.f} 🥈$${prizes.s} 🥉$${prizes.t}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="tab${summaryTab==="sf"?" on":""}" onclick="setSummaryTab('sf')">Stableford</button>
+      <button class="tab${summaryTab==="mp"?" on":""}" onclick="setSummaryTab('mp')">Match Play</button>
+      <button class="tab${summaryTab==="pay"?" on":""}" onclick="setSummaryTab('pay')">Pagos</button>
+    </div>
+    ${tabContent}
+    <div style="margin-top:16px;text-align:center">
+      <button class="btn-g" style="font-size:11px;color:var(--red);border-color:#3a1515" onclick="confirmReset()">
+        🔄 Nuevo torneo
+      </button>
+    </div>
+  </div>`;
+}
+
+function setSummaryTab(t){ summaryTab=t; renderSummary(); }
+
+function confirmReset() {
+  if(confirm("¿Iniciar un nuevo torneo? Se borrarán todos los scores actuales.")) {
+    state={screen:"setup",players:[],groups:[],scores:[]};
+    activeGroup=0; summaryTab="sf";
+    if(SCRIPT_URL) pushState();
+    renderCurrentScreen();
+    topbar().style.display="none";
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+if(SCRIPT_URL) {
+  // Try to restore state from sheet
+  pullState().then(()=>{
+    if(!state.players?.length) state.screen="setup";
+    if(state.screen==="config") state.screen="setup";
+    renderCurrentScreen();
+    if(state.players?.length) { topbar().style.display="flex"; startAutoPull(); }
+  }).catch(()=>{ renderConfig(); });
+} else {
+  renderConfig();
+}
+</script>
+</body>
+</html>
